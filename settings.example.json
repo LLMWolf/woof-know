@@ -1,0 +1,87 @@
+{
+  "version": "0.1.0",
+  "privacy": {
+    "profile": "strict_local",
+    "kill_switch": false
+  },
+  "limits": {
+    "rate_per_min": 100,
+    "max_tokens": 1024
+  },
+  "llm": {
+    "provider": "ollama",
+    "model": "llama3.1:8b",
+    "temperature": 0.2,
+    "timeout_s": 60,
+    "retries": {
+      "max": 3,
+      "backoff_initial_s": 0.5,
+      "backoff_max_s": 6
+    }
+  },
+  "retriever": {
+    "k": 10,
+    "threshold": 0.8,
+    "strategy": "bm25"
+  },
+  "ingest": {
+    "profiles": ["text"],
+    "limits": {
+      "max_pages": 1000,
+      "max_mb": 512,
+      "chunk_size": 1000,
+      "chunk_overlap": 100
+    },
+    "paths": ["/data/docs", "/data/specs.md"]
+  },
+  "ui": {
+    "show_sources": true,
+    "allow_external_context": false,
+    "read_only_settings": true,
+    "language": "ru-RU"
+  },
+  "observability": {
+    "otel_enabled": true,
+    "otel_endpoint": "http://localhost:4317",
+    "log_retention_days": 90
+  },
+  "security": {
+    "auth_mode": "bearer",
+    "oidc": {
+      "issuer": "",
+      "authorization_endpoint": "",
+      "token_endpoint": "",
+      "client_id": ""
+    },
+    "rbac": {
+      "roles": ["admin", "user"]
+    }
+  },
+  "storage": {
+    "db_path": "./data/spree.sqlite",
+    "data_dir": "./data",
+    "backups_dir": "./backup",
+    "sqlite": {
+      "journal_mode": "WAL",
+      "synchronous": "NORMAL"
+    }
+  },
+  "plugins": {
+    "parser": [
+      { "name": "markdown", "enabled": true },
+      { "name": "docx", "enabled": true },
+      { "name": "pdf_text", "enabled": true }
+    ]
+  },
+  "feature_gates": {
+    "tables_r03": true,
+    "ocr_post_v1_1": false
+  },
+  "compliance": {
+    "log_pii": false,
+    "retention_days": 90
+  },
+  "i18n": {
+    "locale": "ru-RU"
+  }
+}

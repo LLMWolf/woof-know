@@ -1,0 +1,141 @@
+# Spectral configuration for WOOF-KNOW (СПРИ) OpenAPI 3.1
+# Цели: соответствие OAS3.1 + кастомные правила проекта (RFC7807, Idempotency-Key, rate-limit headers, security, servers)
+
+extends:
+  - "spectral:oas"
+
+formats:
+  - oas3.1
+  - oas3
+
+rules:
+  # --- Базовые усиления серьёзности на top-правилах
+  info-contact: off  # контакт опционален в периметровых инсталляциях
+  operation-operationId: error
+  operation-operationId-unique: error
+  operation-description: warn
+  operation-tags: error
+  operation-2xx-response: error
+
+  # --- Серверы и версия
+  spree-servers-defined:
+    description: Должен быть указан хотя бы один сервер
+    message: "В разделе servers должен быть хотя бы один элемент"
+    severity: error
+    given: "$"
+    then:
+      field: servers
+      function: truthy
+
+  spree-semver-version:
+    description: info.version должен быть SemVer
+    message: "info.version должен соответствовать SemVer (MAJOR.MINOR.PATCH)"
+    severity: error
+    given: "$.info.version"
+    then:
+      function: pattern
+      functionOptions:
+        match: "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+
+  # --- RFC7807 для 4xx/5xx
+  spree-problem-json-for-errors:
+    description: 4xx/5xx ответы должны иметь content type application/problem+json
+    message: "Для {#property} должен быть объявлен content 'application/problem+json'"
+    severity: error
+    given: "$.paths[*][*].responses[?(@property.match(/^(4|5)\\d{2}$/))].content"
+    then:
+      field: application/problem+json
+      function: truthy
+
+  # --- JSON для успешных ответов
+  spree-json-for-2xx:
+    description: 2xx ответы должны иметь application/json
+    message: "Для {#property} должен быть объявлен content 'application/json'"
+    severity: warn
+    given: "$.paths[*][*].responses[?(@property.match(/^(200|201|202)$/))].content"
+    then:
+      field: application/json
+      function: truthy
+
+  # --- Idempotency-Key для небезопасных методов (POST)
+  spree-idempotency-key-on-post:
+    description: POST операции должны поддерживать заголовок Idempotency-Key
+    message: "POST {#path} должен объявлять параметр заголовка 'Idempotency-Key'"
+    severity: error
+    given: "$.paths[*].post"
+    then:
+      field: parameters
+      function: schema
+      functionOptions:
+        schema:
+          type: array
+          contains:
+            type: object
+            properties:
+              name: { const: Idempotency-Key }
+              in: { const: header }
+            required: [name, in]
+
+  # --- RateLimit заголовки на 200
+  spree-rate-limit-headers-200:
+    description: 200 ответы должны описывать RateLimit заголовки
+    message: "Ответ 200 должен содержать заголовки RateLimit-*"
+    severity: warn
+    given: "$.paths[*][*].responses.200.headers"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required:
+            - RateLimit-Limit
+            - RateLimit-Remaining
+            - RateLimit-Reset
+
+  # --- Security: наличие схем и политики по умолчанию
+  spree-security-schemes-present:
+    description: Должна быть определена хотя бы одна схема безопасности (bearer/oidc)
+    message: "components.securitySchemes должен содержать bearerAuth или oauth2"
+    severity: error
+    given: "$.components.securitySchemes"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          anyOf:
+            - required: [bearerAuth]
+            - required: [oauth2]
+
+  spree-root-security-defined:
+    description: На корне спецификации должна быть задана политика security (может быть пустой массив для public)
+    message: "Корневой объект должен иметь поле security"
+    severity: warn
+    given: "$"
+    then:
+      field: security
+      function: defined
+
+  # --- Теги обязательны для операций (усиление)
+  spree-tags-nonempty:
+    description: Каждая операция должна иметь хотя бы один тег
+    message: "Операция без тегов"
+    severity: error
+    given: "$.paths[*][*]"
+    then:
+      field: tags
+      function: schema
+      functionOptions:
+        schema:
+          type: array
+          minItems: 1
+
+  # --- Ответы должны ссылаться на схему (для JSON)
+  spree-2xx-has-schema:
+    description: Ответы 2xx c application/json должны ссылаться на схему
+    message: "2xx JSON ответ должен иметь schema"
+    severity: error
+    given: "$.paths[*][*].responses[?(@property.match(/^(200|201|202)$/))].content.application/json"
+    then:
+      field: schema
+      function: truthy

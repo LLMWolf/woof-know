@@ -1,0 +1,413 @@
+openapi: 3.1.0
+info:
+  title: WOOF-KNOW (СПРИ) — Core API
+  version: 0.1.0
+  summary: Graph-aware Q&A платформа с локальным приоритетом приватности
+  description: |
+    API уровня /v1 для ядра СПРИ (MVP R0.1–R0.3).
+
+    Политики приватности: `strict_local` (дефолт), `hybrid`, `cloud_ok`.
+    Глобальный kill-switch блокирует любые внешние вызовы.
+
+    Гарантии и правила:
+    - Ошибки в формате **RFC7807** (application/problem+json).
+    - Пагинация — курсорная, `limit` по умолчанию 50 (макс. 500) — применяется там, где указано.
+    - Небезопасные методы поддерживают заголовок **Idempotency-Key**.
+    - Рейт-лимит: **100 req/min** (429 + Retry-After).
+  termsOfService: https://example.local/terms
+  contact:
+    name: СПРИ Team
+    email: ops@example.local
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+servers:
+  - url: http://localhost:8080
+    description: Локальный запуск
+  - url: https://spree.example.local
+    description: Периметровая инсталляция
+security:
+  - bearerAuth: []
+tags:
+  - name: ingest
+    description: Загрузка и индексация данных
+  - name: query
+    description: Выполнение вопросов и получение ответов
+  - name: feedback
+    description: Пользовательская оценка ответов
+  - name: config
+    description: Конфигурация и профили приватности
+  - name: admin
+    description: Операционные эндпоинты администратора
+  - name: health
+    description: Состояние сервиса
+paths:
+  /v1/ingest:
+    post:
+      tags: [ingest]
+      operationId: ingestFiles
+      summary: Индексация файлов/каталогов
+      description: Загрузка путей и индексация контента в локальный граф/кэш.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestRequest'
+            examples:
+              textFirst:
+                summary: Text-first (R0.2)
+                value:
+                  paths: ["/data/knowledge_base", "/data/specs.md"]
+                  profile: text
+                  limits:
+                    max_pages: 1000
+                    max_mb: 512
+      responses:
+        '200':
+          description: Успешная индексация
+          headers:
+            RateLimit-Limit: { $ref: '#/components/headers/RateLimit-Limit' }
+            RateLimit-Remaining: { $ref: '#/components/headers/RateLimit-Remaining' }
+            RateLimit-Reset: { $ref: '#/components/headers/RateLimit-Reset' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/ContentTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/ServerError' }
+  /v1/query:
+    post:
+      tags: [query]
+      operationId: queryAnswer
+      summary: Выполнить вопрос и получить ответ
+      description: Выполняет ретрив, построение промпта и генерацию ответа через локальный LLM (по умолчанию). При `show_sources=true` возвращает источники.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+            examples:
+              default:
+                value:
+                  q: "Каковы KPI MVP?"
+                  k: 10
+                  threshold: 0.8
+                  show_sources: true
+                  allow_external_context: false
+      responses:
+        '200':
+          description: Ответ получен
+          headers:
+            RateLimit-Limit: { $ref: '#/components/headers/RateLimit-Limit' }
+            RateLimit-Remaining: { $ref: '#/components/headers/RateLimit-Remaining' }
+            RateLimit-Reset: { $ref: '#/components/headers/RateLimit-Reset' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/ServerError' }
+  /v1/feedback:
+    post:
+      tags: [feedback]
+      operationId: sendFeedback
+      summary: Оценка ответа пользователем
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackRequest'
+            examples:
+              upvote:
+                value:
+                  qid: "018f0f5e-7b1e-7b3b-bf8e-9e1b9c2a4c11"
+                  value: 1
+      responses:
+        '200':
+          description: Принято
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/ServerError' }
+  /v1/settings:
+    get:
+      tags: [config]
+      operationId: getSettings
+      summary: Получить эффективные настройки
+      responses:
+        '200':
+          description: Текущие настройки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/ServerError' }
+  /v1/admin/killswitch:
+    post:
+      tags: [admin]
+      operationId: setKillSwitch
+      summary: Включить/выключить глобальный kill-switch
+      description: При включении блокируются любые внешние обращения вне локального контура.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KillSwitchRequest'
+            examples:
+              enable:
+                value:
+                  enabled: true
+      responses:
+        '200':
+          description: Текущее состояние переключателя
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KillSwitchResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/ServerError' }
+  /v1/health:
+    get:
+      tags: [health]
+      operationId: health
+      summary: Проверка состояния сервиса
+      responses:
+        '200':
+          description: ОК
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '500': { $ref: '#/components/responses/ServerError' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    oauth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://auth.example.local/oauth2/authorize
+          tokenUrl: https://auth.example.local/oauth2/token
+          scopes:
+            spree.read: Чтение конфигурации и запросов
+            spree.write: Изменение конфигурации и индексирование
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Ключ идемпотентности для повторяющихся POST-запросов
+      schema:
+        type: string
+        maxLength: 128
+  headers:
+    RateLimit-Limit:
+      description: Лимит запросов в текущем окне
+      schema: { type: integer }
+    RateLimit-Remaining:
+      description: Остаток запросов в окне
+      schema: { type: integer }
+    RateLimit-Reset:
+      description: Время до сброса окна (секунды epoch или дельта в секундах)
+      schema: { type: integer }
+  responses:
+    BadRequest:
+      description: Неверный запрос
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unauthorized:
+      description: Требуется аутентификация
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: Доступ запрещён
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ContentTooLarge:
+      description: Слишком большой запрос/файл
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    UnsupportedMediaType:
+      description: Неподдерживаемый тип содержимого
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unprocessable:
+      description: Данные не могут быть обработаны
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    TooManyRequests:
+      description: Превышен лимит запросов
+      headers:
+        Retry-After:
+          description: Рекомендованная пауза перед повтором (секунды)
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ServerError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    Problem:
+      title: RFC7807 Problem Details
+      type: object
+      properties:
+        type: { type: string, format: uri, default: about:blank }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string, format: uri }
+        traceId: { type: string, description: 'Корреляционный идентификатор' }
+      required: [title, status]
+    IngestRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        paths:
+          type: array
+          minItems: 1
+          items: { type: string }
+          description: Пути к файлам/каталогам
+        profile:
+          type: string
+          enum: [text, table]
+          description: Профиль парсинга (Text-first в R0.2; Таблицы в R0.3)
+        limits:
+          type: object
+          additionalProperties: false
+          properties:
+            max_pages: { type: integer, minimum: 1 }
+            max_mb: { type: integer, minimum: 1 }
+      required: [paths]
+    IngestResponse:
+      type: object
+      properties:
+        ingested: { type: integer, minimum: 0 }
+        nodes:
+          type: array
+          items: { type: string, format: uuid }
+        warnings:
+          type: array
+          items: { type: string }
+      required: [ingested]
+    QueryRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        q: { type: string, minLength: 1 }
+        k: { type: integer, minimum: 1, default: 10 }
+        threshold: { type: number, minimum: 0, maximum: 1, default: 0.8 }
+        show_sources: { type: boolean, default: false }
+        allow_external_context: { type: boolean, default: false }
+      required: [q]
+    SourceSpan:
+      type: object
+      properties:
+        node_id: { type: string, format: uuid }
+        span:
+          type: object
+          description: Позиция фрагмента (страница/смещение/лист/строка)
+          additionalProperties: true
+      required: [node_id]
+    QueryResponse:
+      type: object
+      properties:
+        answer: { type: string }
+        sources:
+          type: array
+          items: { $ref: '#/components/schemas/SourceSpan' }
+        count: { type: integer, minimum: 0 }
+        threshold: { type: number, minimum: 0, maximum: 1 }
+        no_answer: { type: boolean }
+        latency_ms: { type: integer, minimum: 0 }
+      required: [answer, count]
+    FeedbackRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        qid: { type: string, format: uuid }
+        value:
+          type: integer
+          enum: [-1, 0, 1]
+      required: [qid, value]
+    FeedbackResponse:
+      type: object
+      properties:
+        ok: { type: boolean, default: true }
+      required: [ok]
+    SettingsResponse:
+      type: object
+      properties:
+        privacy:
+          type: string
+          enum: [strict_local, hybrid, cloud_ok]
+        llm:
+          type: object
+          properties:
+            provider: { type: string, const: ollama }
+            model: { type: string, default: 'llama3.1:8b' }
+            temperature: { type: number, default: 0.2 }
+            timeout_s: { type: integer, default: 60 }
+          required: [provider, model]
+        limits:
+          type: object
+          properties:
+            rate_per_min: { type: integer, default: 100 }
+      required: [privacy, llm]
+    KillSwitchRequest:
+      type: object
+      properties:
+        enabled: { type: boolean }
+      required: [enabled]
+    KillSwitchResponse:
+      type: object
+      properties:
+        enabled: { type: boolean }
+        ts: { type: string, format: date-time }
+      required: [enabled, ts]
+    HealthResponse:
+      type: object
+      properties:
+        status: { type: string, enum: [ok] }
+        version: { type: string }
+      required: [status]
