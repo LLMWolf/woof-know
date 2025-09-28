@@ -1,0 +1,89 @@
+version: "3.9"
+
+# WOOF-KNOW (СПРИ): локальный стенд
+# Сервисы: api, ollama, (опц.) otel-collector, утилита ollama-pull для загрузки модели
+
+name: ${COMPOSE_PROJECT_NAME:-spree}
+
+services:
+  api:
+    image: ${API_IMAGE:-spree/api:dev}
+    # build: .   # <- если есть Dockerfile приложения, раскомментируйте
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      SPREE_HOST: 0.0.0.0
+      SPREE_PORT: 8080
+      OLLAMA_BASE_URL: http://ollama:11434
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
+    ports:
+      - "${SPREE_PORT:-8080}:8080"
+    depends_on:
+      ollama:
+        condition: service_healthy
+      ollama-pull:
+        condition: service_completed_successfully
+    volumes:
+      - type: bind
+        source: ${DATA_DIR:-./data}
+        target: /app/data
+      - type: bind
+        source: ${BACKUPS_DIR:-./backup}
+        target: /app/backup
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [spree]
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [spree]
+
+  # Одноразовый сервис для загрузки модели (ждёт готовности ollama)
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-lc", "ollama pull ${LLM_MODEL:-llama3.1:8b}"]
+    volumes:
+      - ollama_models:/root/.ollama
+    restart: "no"
+    networks: [spree]
+
+  # Опциональный OpenTelemetry Collector (включается, если нужен)
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    command: ["--config=/etc/otel-collector.yaml"]
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ./otel-collector.yaml
+        target: /etc/otel-collector.yaml
+        read_only: true
+    ports:
+      - "4317:4317"   # OTLP gRPC
+    networks: [spree]
+
+volumes:
+  ollama_models: {}
+
+networks:
+  spree: {}
