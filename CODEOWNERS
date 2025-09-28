@@ -1,0 +1,29 @@
+# CODEOWNERS — СПРИ
+# Правила назначения ответственных за изменения в критичных артефактах
+
+# Глобально — команда архитектуры
+*       @spree-owners/architecture
+
+# Архитектура и спецификации
+/ARCH-СПРИ.md              @spree-owners/architecture
+/openapi.yaml               @spree-owners/api
+/spectral.yaml              @spree-owners/api
+/settings.schema.json       @spree-owners/architecture @spree-owners/api
+
+# Безопасность
+/SECURITY.md                @spree-owners/security
+
+# CI/CD
+/.github/workflows/**       @spree-owners/ops
+
+# Бэкапы и восстановление
+/backup.sh                  @spree-owners/ops
+/restore.sh                 @spree-owners/ops
+
+# Документация и гайды
+/README.md                  @spree-owners/docs
+/CONTRIBUTING.md            @spree-owners/docs
+
+# Демоданные
+/seed.sh                    @spree-owners/ops
+/sample-data/**             @spree-owners/ops
