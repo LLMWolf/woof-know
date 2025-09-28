@@ -13,15 +13,30 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "woof_know_спри_prd_md_v_0 (1).md",
+                "file": "ARCH-СПРИ.md",
                 "mode": "source",
-                "source": false
+                "source": true
               },
               "icon": "lucide-file",
-              "title": "woof_know_спри_prd_md_v_0 (1)"
+              "title": "ARCH-СПРИ"
+            }
+          },
+          {
+            "id": "ed7d86a53c6fe61a",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Архитектура СПРИ.md",
+                "mode": "source",
+                "source": true
+              },
+              "icon": "lucide-file",
+              "title": "Архитектура СПРИ"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -98,6 +113,7 @@
         "state": {
           "type": "backlink",
           "state": {
+            "file": "Архитектура СПРИ.md",
             "collapseAll": false,
             "extraContext": false,
             "sortOrder": "alphabetical",
@@ -152,10 +168,38 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "fe1076d30ac34838",
+  "active": "ed7d86a53c6fe61a",
   "lastOpenFiles": [
+    "ARCH-СПРИ.md",
+    "Архитектура СПРИ.md",
+    "System-Brief.md",
+    "CONTRIBUTING.md",
+    "CHANGELOG.md",
+    "redoc-build.sh",
+    "/redoc-build.sh",
+    "/CHANGELOG.md",
+    "acceptance-checklist-R0.1–R0.3.md",
+    "Конкуренты.md",
+    "restore.sh",
+    "SECURITY.md",
+    "CODEOWNERS",
+    "/restore.sh",
+    "/SECURITY.md",
+    "/CONTRIBUTING.md",
+    "/CODEOWNERS",
     "woof_know_спри_prd_md_v_0 (1).md",
-    "Без названия.md",
-    "LICENSE"
+    "SWAT.md",
+    "README.md",
+    "spectral.yaml",
+    "settings.schema.json",
+    "settings.example.json",
+    "sample-data/seed.sh",
+    "/Конкуренты.md",
+    "/woof_know_спри_prd_md_v_0 (1).md",
+    "/acceptance-checklist-R0.1–R0.3.md",
+    "/System-Brief.md",
+    "/SWAT.md",
+    "/README.md",
+    "/ARCH-СПРИ.md"
   ]
 }
