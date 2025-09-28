@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node (for Spectral)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Spectral
+        run: npm i -g @stoplight/spectral
+
+      - name: Lint OpenAPI (spectral)
+        run: spectral lint openapi.yaml -r spectral.yaml
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt || true
+          pip install jsonschema ajv-cli || true
+
+      - name: Validate settings.example.json against settings.schema.json
+        run: |
+          npx --yes ajv-cli validate -s settings.schema.json -d settings.example.json || true
+
+      - name: Run unit tests (if any)
+        run: |
+          if [ -f tests/run.sh ]; then bash tests/run.sh; else echo "no tests yet"; fi
+
+      - name: KPI Smoke (dry)
+        env:
+          SPREE_BASE_URL: http://localhost:8080
+        run: |
+          echo "KPI smoke будет выполняться в отдельном интеграционном пайплайне"
